@@ -1,5 +1,7 @@
+import pprint
 from utils.read_excel import Excel_file
 from utils.read_pdfs import PDF_Utils
+
 
 import argparse
 
@@ -26,7 +28,10 @@ def main():
     args = parser.parse_args()
 
     pdf_utils = PDF_Utils(
-        args.input, args.output, template_path="./pdfs/TemplateWordA4v01.pdf"
+        args.input,
+        args.output,
+        template_path="./pdfs/TemplateWordA4v01.pdf",
+        cover="./pdfs/Cover.pdf",
     )
 
     # reads the pdf files in the provided folder
@@ -46,6 +51,11 @@ def main():
     pdf_utils.create_index_and_merge(
         args.output, index_items
     )  # pdf with bookmarks only!!
+    # index page on docx
+    pdf_utils.alt_index_page(index_items)
+
+    # pdf_utils.final_doc()
+    # excel_reader.make_index_page()
 
 
 if __name__ == "__main__":

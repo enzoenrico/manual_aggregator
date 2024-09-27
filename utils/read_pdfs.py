@@ -1,5 +1,6 @@
 import os
-from typing import Dict, List
+from turtle import width
+from typing import Dict, List, Union
 from pypdf import PageObject, PdfReader, PdfWriter
 import pypdf
 from reportlab.lib.pagesizes import letter
@@ -7,12 +8,17 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.colors import black, gray
 import io
 
+from docx import Document
+from docx.shared import Cm
+
 
 class PDF_Utils:
-    def __init__(self, folder_path: str, pdf_path: str, template_path: str) -> None:
+    def __init__(self, folder_path: str, pdf_path: str, template_path: str, cover:str, presentation: Union[str, None] = None) -> None:
         self.folder_path = folder_path
         self.template_path = template_path
         self.pdf_path = pdf_path
+        self.cover = cover
+        self.presentation = presentation
 
     def read_pdfs(self) -> Dict[str, PdfReader]:
         files: Dict[str, PdfReader] = {}
@@ -32,33 +38,60 @@ class PDF_Utils:
         merger.close()
 
     def make_index_page(self, index: Dict[int, List[Dict]]) -> PageObject:
-        template_page = self.template_path
+        packet = io.BytesIO()
 
-        cv = canvas.Canvas(template_page, pagesize=letter)
+        # Create a new PDF with ReportLab
+        cv = canvas.Canvas(packet, pagesize=letter)
         cv.setFont("Helvetica", 12)
 
         for idx, (key, val) in enumerate(index.items()):
             cv.setFillColor(black)
             cv.setFontSize(11)
 
-            next_topic_jump = len(val) * 20 + 10
+            next_topic_jump = len(val) * 20 + 10 if len(val) > 0 else idx * 30
 
-            cv.drawString(100, 750 - next_topic_jump, f"Index {key}: {len(val)} topics")
+            cv.drawString(100, 800 - next_topic_jump, f"Index {key}: {len(val)} topics")
             for indexes, items in enumerate(val):
                 cv.setFillColor(gray)
-                cv.setFontSize(10)
+                cv.setFontSize(8)
                 cv.drawString(
-                    120,
-                    740 - indexes * 20 - (idx + 1) * 20,
-                    f"{items['Descrição']}",
+                    110,
+                    790 - indexes * 20 - (idx + 1) * 30,
+                    f"- {items['Descrição']}",
                 )
 
-        cv.save()
-        packet = io.BytesIO()
-        packet.write(open(template_page, "rb").read())
-        packet.seek(0)
+        cv.save()  # Finalize the new PDF we just created
+        packet.seek(0)  # Go to the beginning of the BytesIO buffer
         new_pdf = PdfReader(packet)
-        return new_pdf.pages[0]
+
+        # Read the template PDF
+        template_pdf = PdfReader(self.template_path)
+        template_page = template_pdf.pages[0]
+
+        # Create a new PageObject for the output PDF that combines the template and the new index
+        output_page = PageObject.create_blank_page(
+            width=template_page.mediabox.width,
+            height=template_page.mediabox.height,
+        )
+
+        # Merge template content with the new index content
+        output_page.merge_page(template_page)  # Copy content from the template
+        output_page.merge_page(
+            new_pdf.pages[0]
+        )  # Add the new index without overwriting
+        return output_page
+
+
+    def alt_index_page(self, index: Dict[int, List[Dict]]) -> PageObject:
+        document = Document()
+
+        document.add_heading("Index", 0)
+        for idx, (key, val) in enumerate(index.items()):
+            document.add_heading(f"Index {key}: {len(val)} topics", level=1)
+            for items in val:
+                document.add_paragraph(f"- {items['Descrição']}", style="List Bullet")
+        document.save("temp.docx")
+        return PdfReader('temp.docx').pages[0]
 
     def create_index_and_merge(
         self, merged_file_path: str, index: Dict[int, List[Dict]]
@@ -72,7 +105,6 @@ class PDF_Utils:
 
         index_page = self.make_index_page(index)
         merged_with_index.add_page(index_page)
-
 
         # count the pages on each added document, but how am i gonna track
         # what docs are being added?
@@ -89,35 +121,25 @@ class PDF_Utils:
                 title=section_indexes[i], page_number=i + 1, bold=True
             )
             for _, values in enumerate(v):
-                # index_titles = {
-                #     "parent": section_indexes[i],
-                #     "value": values["Descrição"],
-                # }
-
                 merged_with_index.add_outline_item(
                     title=values["Descrição"],
-                    #change here to right addresses
+                    # change here to right addresses
                     page_number=i + 1,
                     parent=parent_outline,
                 )
-        for _, v in enumerate(PdfReader(merged_file_path).pages):
-            merged_with_index.add_page(v)
-        # section_sub_indexes.append(index_titles)
 
-        # pprint.pprint(section_sub_indexes)
-
-        # merged_with_index.add_page(page)
-        # parent_outline = merged_with_index.add_outline_item(
-        #     title=index_titles[1],
-        #     page_number=idx + 1,
-        #     bold=True,
-        # )
 
         merged_with_index.add_page(merged_file.pages[0])
 
         with open(merged_file_path, "wb") as f:
             merged_with_index.write(f)
-            # template = open('../pdfs/TemplateWordA4v01.pdf', "wb")
-            # merged_with_index.write(template)
 
         merged_with_index.close()
+
+    def final_doc(self, merged_path: str):
+        w = PdfWriter()
+        r = PdfReader(merged_path)
+
+        capa = PdfReader(self.cover)
+        apresentação = PdfReader(self.presentation) if self.presentation is not None else None
+

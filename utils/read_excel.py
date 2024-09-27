@@ -1,7 +1,7 @@
 from ctypes import Array
 import json
 from pprint import pprint
-from typing import Optional, Union, Literal, Dict, List
+from typing import Optional, Union, Literal, Dict, List, Any
 import pandas as pd
 
 
@@ -88,3 +88,38 @@ class Excel_file:
         return mapped_index
     
     
+    def make_index_page(self):
+        mapped_index: Dict[int, List[Dict]] = {}
+        cases = ['S', 's']
+        all_items: List[Dict[str, Any]] = []
+        for index, item in enumerate(self.excel_dict):
+            sect = item["Seção"]
+            name = item['Nome do Arquivo PDF']
+            desc = item["Descrição"]
+
+            if sect in cases or isinstance(sect, int):
+                newobj= {
+                    "name": name,  
+                    "description": desc,
+                    "section": sect,
+                    "children": []
+                }               
+                all_items.append(newobj)
+            
+            
+        parents = [item for item in all_items if item['section'] == 'S']
+        sub_parents = [item for item in all_items if item['section'] == 's']
+        children = [item for item in all_items if isinstance(item['section'], int)]
+
+        # print('INDEX FROM EXCEL')
+        for i in children:
+            for j in sub_parents:
+                if "SEÇÃO " + str(i['section']) == str(j['name']).split('.')[0]:
+                    j['children'].append(i)
+        
+        for i in sub_parents:
+            for j in parents:
+                if str(j['name']).split('.')[0] == str(i['name']).split('.')[0]:
+                    j['children'].append(i)
+        pprint(parents)
+        return all_items
