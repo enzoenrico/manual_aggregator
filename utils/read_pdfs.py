@@ -1,6 +1,7 @@
 import os
+from re import A
 from turtle import width
-from typing import Dict, List, Union
+from typing import IO, Dict, List, Union
 from pypdf import PageObject, PdfReader, PdfWriter
 import pypdf
 from reportlab.lib.pagesizes import letter
@@ -13,7 +14,14 @@ from docx.shared import Cm
 
 
 class PDF_Utils:
-    def __init__(self, folder_path: str, pdf_path: str, template_path: str, cover:str, presentation: Union[str, None] = None) -> None:
+    def __init__(
+        self,
+        folder_path: str,
+        pdf_path: str,
+        template_path: str,
+        cover: str,
+        presentation: Union[str, None] = None,
+    ) -> None:
         self.folder_path = folder_path
         self.template_path = template_path
         self.pdf_path = pdf_path
@@ -81,17 +89,13 @@ class PDF_Utils:
         )  # Add the new index without overwriting
         return output_page
 
-
-    def alt_index_page(self, index: Dict[int, List[Dict]]) -> PageObject:
+    def alt_index_page(self, index: Dict[int, List[Dict]]):
         document = Document()
-
-        document.add_heading("Index", 0)
         for idx, (key, val) in enumerate(index.items()):
             document.add_heading(f"Index {key}: {len(val)} topics", level=1)
             for items in val:
                 document.add_paragraph(f"- {items['Descrição']}", style="List Bullet")
-        document.save("temp.docx")
-        return PdfReader('temp.docx').pages[0]
+        document.save("alt_index.docx")
 
     def create_index_and_merge(
         self, merged_file_path: str, index: Dict[int, List[Dict]]
@@ -128,7 +132,6 @@ class PDF_Utils:
                     parent=parent_outline,
                 )
 
-
         merged_with_index.add_page(merged_file.pages[0])
 
         with open(merged_file_path, "wb") as f:
@@ -141,5 +144,6 @@ class PDF_Utils:
         r = PdfReader(merged_path)
 
         capa = PdfReader(self.cover)
-        apresentação = PdfReader(self.presentation) if self.presentation is not None else None
-
+        apresentação = (
+            PdfReader(self.presentation) if self.presentation is not None else None
+        )
